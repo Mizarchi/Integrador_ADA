@@ -1,63 +1,79 @@
 import os
 import time
 import curses
-from typing import List, Tuple
+import random
 
-nombre_jugador = input("Por favor, ingresa tu nombre: ")
+class Juego:
+    def __init__(self, nombre_jugador, laberinto_str):
+        self.nombre_jugador = nombre_jugador
+        self.laberinto_str = laberinto_str
+        self.laberinto_filas = laberinto_str.split("\n")
+        self.laberinto = [list(fila) for fila in self.laberinto_filas]
+        self.inicio = (0, 0)
+        self.fin = (len(self.laberinto) - 1, len(self.laberinto[0]) - 1)
 
-print(f"Bienvenido, al laberinto {nombre_jugador}!")
+    def mostrar_laberinto(self, stdscr):
+        for i, fila in enumerate(self.laberinto):
+            stdscr.addstr(i, 0, ''.join(fila))
+        stdscr.refresh()
 
-def mostrar_laberinto(stdscr, laberinto):
-    for i, fila in enumerate(laberinto):
-        stdscr.addstr(i, 0, ''.join(fila))
-    stdscr.refresh()
+    def main_loop(self, stdscr):
+        px, py = self.inicio
 
-def main_loop(stdscr, laberinto, inicio, fin):
-    px, py = inicio
+        while (px, py) != self.fin:
+            self.laberinto[px][py] = 'P'
+            self.mostrar_laberinto(stdscr)
 
-    while (px, py) != fin:
-        laberinto[px][py] = 'P'  # Colocar el jugador en la posición actual
-        mostrar_laberinto(stdscr, laberinto)
+            time.sleep(0.3)
 
-        # Esperar un breve período de tiempo
-        time.sleep(0.3)
+            nueva_px, nueva_py = px, py
+            key = stdscr.getch()
+            if key == curses.KEY_UP and px > 0:
+                nueva_px -= 1
+            elif key == curses.KEY_DOWN and px < len(self.laberinto) - 1:
+                nueva_px += 1
+            elif key == curses.KEY_LEFT and py > 0:
+                nueva_py -= 1
+            elif key == curses.KEY_RIGHT and py < len(self.laberinto[0]) - 1:
+                nueva_py += 1
 
-        # Calcular la nueva posición tentativa automáticamente
-        nueva_px, nueva_py = px, py
-        key = stdscr.getch()
-        if key == curses.KEY_UP and px > 0:
-            nueva_px -= 1
-        elif key == curses.KEY_DOWN and px < len(laberinto) - 1:
-            nueva_px += 1
-        elif key == curses.KEY_LEFT and py > 0:
-            nueva_py -= 1
-        elif key == curses.KEY_RIGHT and py < len(laberinto[0]) - 1:
-            nueva_py += 1
+            if 0 <= nueva_px < len(self.laberinto) and 0 <= nueva_py < len(self.laberinto[0]) and self.laberinto[nueva_px][nueva_py] != '#':
+                if (nueva_px, nueva_py) != (px, py):
+                    self.laberinto[px][py] = '.'
+                px, py = nueva_px, nueva_py
+            else:
+                break
 
-        # Verificar si la nueva posición es válida
-        if 0 <= nueva_px < len(laberinto) and 0 <= nueva_py < len(laberinto[0]) and laberinto[nueva_px][nueva_py] != '#':
-            # Restaurar la posición anterior solo si la posición actual ha cambiado
-            if (nueva_px, nueva_py) != (px, py):
-                laberinto[px][py] = '.'
-            # Actualizar la posición del jugador
-            px, py = nueva_px, nueva_py
+        if (px, py) == self.fin:
+            self.mostrar_laberinto(stdscr)
+            stdscr.addstr(len(self.laberinto), 0, f'¡Felicidades, {self.nombre_jugador}! Has llegado al final del laberinto.')
+            stdscr.refresh()
+            stdscr.getch()
         else:
-            # Si se encuentra con una pared, salir del bucle
-            break
+            stdscr.addstr(len(self.laberinto), 0, f'¡{self.nombre_jugador}, has perdido! Te has encontrado con una pared.')
+            stdscr.refresh()
+            stdscr.getch()
 
-    # Verificar si el jugador llegó al final
-    if (px, py) == fin:
-        mostrar_laberinto(stdscr, laberinto)
-        stdscr.addstr(len(laberinto), 0, "¡Felicidades! Has llegado al final del laberinto.")
-        stdscr.refresh()
-        stdscr.getch()
-    else:
-        stdscr.addstr(len(laberinto), 0, "¡Has perdido! Te has encontrado con una pared.")
-        stdscr.refresh()
-        stdscr.getch()
+    def empezar_juego(self, stdscr):
+        self.main_loop(stdscr)
 
-def empezar_juego(stdscr):
-    laberinto_str = """..###################
+class JuegoArchivo(Juego):
+    def __init__(self, nombre_jugador, path_a_mapas):
+        super().__init__(nombre_jugador, self.cargar_mapa_aleatorio(path_a_mapas))
+
+    def cargar_mapa_aleatorio(self, path_a_mapas):
+        lista_archivos = os.listdir(path_a_mapas)
+        nombre_archivo = random.choice(lista_archivos)
+        path_completo = os.path.join(path_a_mapas, nombre_archivo)
+
+        with open(path_completo, 'r') as archivo:
+            contenido = archivo.read()
+
+        return contenido.strip()
+
+# Uso del juego con un laberinto fijo
+nombre_jugador = input("Por favor, ingresa tu nombre: ")
+juego_fijo = Juego(nombre_jugador, """..###################
 ....#...............#
 #.#.#####.#########.#
 #.#...........#.#.#.#
@@ -77,18 +93,23 @@ def empezar_juego(stdscr):
 #.#.#.#.#.#...#.#...#
 #.#.#.#.#.#.#.#.#.#.#
 #.....#.....#.#.#.#.#
-###################.."""
+###################..""")
 
-    laberinto_filas = laberinto_str.split("\n")
-    laberinto = [list(fila) for fila in laberinto_filas]
+curses.wrapper(juego_fijo.empezar_juego)
 
-    inicio = (0, 0)
-    fin = (len(laberinto) - 1, len(laberinto[0]) - 1)
+# Uso del juego con un laberinto cargado desde un archivo
+juego_desde_archivo = JuegoArchivo(nombre_jugador, "directorio_de_mapas")
+curses.wrapper(juego_desde_archivo.empezar_juego)
 
-    main_loop(stdscr, laberinto, inicio, fin)
 
-# Llamar a la función para comenzar el juego
-curses.wrapper(empezar_juego)
+
+
+
+
+
+
+
+
 
 
 
